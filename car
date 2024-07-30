@@ -1,0 +1,781 @@
+local v1 = {};
+
+local LocalPlayer = game:GetService("Players").LocalPlayer;
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local Remotes = ReplicatedStorage:WaitForChild("Remotes");
+local VehicleDealer = LocalPlayer.PlayerGui:WaitForChild("Firestone").Container.VehicleDealer;
+local ClientLibrary = LocalPlayer.PlayerScripts:WaitForChild("ClientLibrary");
+local SharedLibrary = ReplicatedStorage:WaitForChild("SharedLibrary");
+
+function isCivilianTeam()
+	if LocalPlayer.Team.Name ~= "Citizens" then
+		if LocalPlayer.Team.Name == "Visitors" then
+
+		else
+			return false;
+		end;
+	end;
+	return true;
+end;
+
+local u1 = {
+	MaxAccel = 100, 
+	MaxTorque = 100000, 
+	MaxGear = 12, 
+	MaxSpeed = 120, 
+	MaxStorage = 700, 
+	MaxTurnSpeed = 5
+};
+
+local TweenService = game:GetService("TweenService");
+local u3 = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.In);
+
+function MakeCarStats(p1, p2, p3)
+	p3.Visible = false;
+	if p3.Parent:FindFirstChild("ColorMenu") then
+		p3.Parent.ColorMenu.Visible = false;
+	end;
+	if not p1:FindFirstChild("Chassis") then
+		return;
+	end;
+	local l__Configuration__8 = p1.Chassis.VehicleSeat:FindFirstChild("Configuration", true);
+	if l__Configuration__8 then
+		if not l__Configuration__8:IsA("ModuleScript") then
+			return;
+		end;
+	else
+		return;
+	end;
+	p3.Visible = true;
+	local v9 = require(l__Configuration__8);
+	local v10 = {
+		Acceleration = 0, 
+		Handling = 0, 
+		StorageCapacity = 0, 
+		TopSpeed = 80, 
+		Acceleration = v9.accel / u1.MaxAccel, 
+		StorageCapacity = (v9.Storage and 0) / u1.MaxStorage, 
+		TopSpeed = v9.gears * 10 / u1.MaxSpeed, 
+		Handling = v9.turnSpeed / u1.MaxTurnSpeed
+	};
+	TweenService:Create(p3.Acceleration.Bar, u3, {
+		Size = UDim2.new(v10.Acceleration, 0, 1, 0)
+	}):Play();
+	TweenService:Create(p3.StorageCapacity.Bar, u3, {
+		Size = UDim2.new(v10.StorageCapacity, 0, 1, 0)
+	}):Play();
+	p3.StorageText.Text = tostring(v9.Storage);
+	TweenService:Create(p3.TopSpeed.Bar, u3, {
+		Size = UDim2.new(v10.TopSpeed, 0, 1, 0)
+	}):Play();
+	p3.SpeedText.Text = tostring(math.floor(v9.gears * 10));
+	TweenService:Create(p3.Handling.Bar, u3, {
+		Size = UDim2.new(v10.Handling, 0, 1, 0)
+	}):Play();
+	p3.HandlingText.Text = tostring(v10.Handling * 100);
+end;
+
+local u4 = {};
+local u5 = nil;
+local u6 = {
+	GetTeamVehicles = ReplicatedStorage.Remotes.Player:WaitForChild("GetTeamVehicles"), 
+	PurchaseVehicle = ReplicatedStorage.Remotes.Player:WaitForChild("PurchaseVehicle"), 
+	OwnedVehicles = ReplicatedStorage.Remotes.Player:WaitForChild("GetOwnedVehicles"), 
+	SpawnCar = ReplicatedStorage.Remotes.Player:WaitForChild("SpawnCar"), 
+	SpawnHeli = ReplicatedStorage.Remotes.Player:WaitForChild("SpawnHeli"), 
+	BuyItem = ReplicatedStorage.Remotes.Player:WaitForChild("BuyItemShopEvent"), 
+	RadioFunc = game.ReplicatedStorage.Remotes.Radio:WaitForChild("RemoteFunction")
+};
+
+local u7 = nil;
+local RunService = game:GetService("RunService");
+
+function BindCameraToHeli(p4, p5, p6)
+	if u4.CarSpin then
+		u4.CarSpin:Disconnect();
+	end;
+	if u5 == nil then
+		u5 = Instance.new("Camera", p4);
+		u5.CFrame = CFrame.new(Vector3.new(0, p6 and 6, 0));
+		u5.FieldOfView = 70;
+	end;
+	p4.DisplayContents:ClearAllChildren();
+	if not ReplicatedStorage.Objects:WaitForChild("VehicleClones"):FindFirstChild(p5) then
+		u6.PurchaseVehicle:FireServer("CreateVehicleClone", p5);
+	end;
+	ReplicatedStorage.Objects:WaitForChild("VehicleClones"):WaitForChild(p5, 4);
+	task.wait(0.1);
+	pcall(function()
+		u7 = ReplicatedStorage.Objects:WaitForChild("VehicleClones"):WaitForChild(p5):Clone();
+		u7.Parent = p4.DisplayContents;
+		u7:SetPrimaryPartCFrame(CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, 0));
+	end);
+	if u7 then
+
+	else
+		return nil;
+	end;
+	u4.CarSpin = RunService.RenderStepped:Connect(function()
+		if u7 then
+			if not u7.PrimaryPart then
+				u4.CarSpin:Disconnect();
+				return;
+			end;
+		else
+			u4.CarSpin:Disconnect();
+			return;
+		end;
+		u7:SetPrimaryPartCFrame(u7.PrimaryPart.CFrame * CFrame.Angles(0, 0.01, 0));
+	end);
+	return u7;
+end;
+
+function BindCameraToCar(p7, p8, p9, p10)
+	if u4.CarSpin then
+		u4.CarSpin:Disconnect();
+	end;
+	if u5 == nil then
+		u5 = Instance.new("Camera", p7);
+		u5.CFrame = CFrame.new(Vector3.new(0, p9 and 6, 0));
+		u5.FieldOfView = 70;
+	end;
+	p7.DisplayContents:ClearAllChildren();
+	if not ReplicatedStorage.Objects:WaitForChild("VehicleClones"):FindFirstChild(p8) then
+		u6.PurchaseVehicle:FireServer("CreateVehicleClone", p8);
+	end;
+	ReplicatedStorage.Objects:WaitForChild("VehicleClones"):WaitForChild(p8, 4):WaitForChild("Chassis", 2);
+	task.wait(0.1);
+	pcall(function()
+		u7 = ReplicatedStorage.Objects:WaitForChild("VehicleClones"):WaitForChild(p8):Clone();
+		u7.Parent = p7.DisplayContents;
+		u7.PrimaryPart = u7:WaitForChild("Chassis").PrimaryPart;
+		u7:SetPrimaryPartCFrame(CFrame.new(0, -2, 0) * CFrame.Angles(0, 0, 0));
+	end);
+	if u7 then
+
+	else
+		return nil;
+	end;
+	u4.CarSpin = RunService.RenderStepped:Connect(function()
+		if u7 then
+			if not u7.PrimaryPart then
+				u4.CarSpin:Disconnect();
+				return;
+			end;
+		else
+			u4.CarSpin:Disconnect();
+			return;
+		end;
+		u7:SetPrimaryPartCFrame(u7.PrimaryPart.CFrame * CFrame.Angles(0, 0.01, 0));
+	end);
+	return u7;
+end;
+local u9 = {};
+
+function ClearSub()
+	local v11, v12, v13 = pairs(u9);
+	while true do
+		local v14, v15 = v11(v12, v13);
+		if v14 then
+
+		else
+			break;
+		end;
+		v13 = v14;
+		if v15 ~= nil then
+			v15:Disconnect();
+		end;	
+	end;
+end;
+
+function WipeConnections(p11)
+	local v16, v17, v18 = pairs(p11);
+	while true do
+		local v19, v20 = v16(v17, v18);
+		if v19 then
+
+		else
+			break;
+		end;
+		v18 = v19;
+		if v20 ~= nil then
+			if typeof(v20) == "RBXScriptConnection" then
+				v20:Disconnect();
+			elseif v20 ~= nil then
+				if typeof(v20) == "table" then
+					local v21, v22, v23 = pairs(v20);
+					while true do
+						local v24, v25 = v21(v22, v23);
+						if v24 then
+
+						else
+							break;
+						end;
+						v23 = v24;
+						WipeConnections(v25);					
+					end;
+				end;
+			end;
+		elseif v20 ~= nil then
+			if typeof(v20) == "table" then
+				v21, v22, v23 = pairs(v20);
+				while true do
+					v24, v25 = v21(v22, v23);
+					if v24 then
+
+					else
+						break;
+					end;
+					v23 = v24;
+					WipeConnections(v25);				
+				end;
+			end;
+		end;	
+	end;
+end;
+
+function Quit()
+	WipeConnections(u4);
+	ClearSub();
+	VehicleDealer.Visible = false;
+	VehicleDealer.SpawnFrame.ViewportFrame.DisplayContents:ClearAllChildren();
+	VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu.Visible = false;
+	VehicleDealer.PurchaseFrame.ViewportFrame.DisplayContents:ClearAllChildren();
+	VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu.Visible = false;
+end;
+
+local u10 = {
+	AudioControl = require(ClientLibrary.Misc.AudioControl), 
+	FormatNum = require(ClientLibrary.Misc.FormatNum), 
+	TweenObject = require(ClientLibrary.Misc.TweenObject), 
+	GameItems = require(SharedLibrary.General.GameItems), 
+	Vehicles = require(SharedLibrary.General.VehicleLib), 
+	Notification = require(ClientLibrary.Interface.Notification)
+};
+local l__Template__11 = VehicleDealer.PurchaseFrame.NavBar.Contents.UIListLayout.Template;
+function PurchaseMenu(p12, p13)
+	ClearSub();
+	VehicleDealer.SpawnFrame.Visible = false;
+	VehicleDealer.PurchaseFrame.Visible = true;
+	VehicleDealer.MenuFrame.Visible = false;
+	local v26, v27, v28 = pairs(VehicleDealer.PurchaseFrame.NavBar.Contents:GetChildren());
+	while true do
+		local v29, v30 = v26(v27, v28);
+		if v29 then
+
+		else
+			break;
+		end;
+		v28 = v29;
+		if v30:IsA("TextButton") then
+			v30:Destroy();
+		end;	
+	end;
+	local l__Contents__31 = VehicleDealer.PurchaseFrame.NavBar.Contents;
+	u4.UIListLayout = l__Contents__31.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		l__Contents__31.CanvasSize = UDim2.new(0, 0, 0, l__Contents__31.UIListLayout.AbsoluteContentSize.Y);
+	end);
+	u4.ColorPicker = {};
+	local u12 = nil;
+	local u13 = nil;
+	local function u14(p14)
+		if u12 then
+			local v32, v33, v34 = pairs(u12:GetDescendants());
+			while true do
+				local v35, v36 = v32(v33, v34);
+				if v35 then
+
+				else
+					break;
+				end;
+				v34 = v35;
+				if v36.Parent.Name ~= "Color" then
+					if v36.Name == "Color" then
+						if v36:IsA("BasePart") then
+							v36.Color = p14;
+						end;
+					end;
+				elseif v36:IsA("BasePart") then
+					v36.Color = p14;
+				end;			
+			end;
+		end;
+	end;
+	local function v37(p15)
+		if p15 == nil then
+			return;
+		end;
+		local l__ColorMenu__38 = VehicleDealer.PurchaseFrame.LowerBar.ColorMenu;
+		local l__ColourTemplate__39 = l__ColorMenu__38.UIGridLayout.ColourTemplate;
+		local v40, v41, v42 = pairs(l__ColorMenu__38:GetChildren());
+		while true do
+			local v43, v44 = v40(v41, v42);
+			if v43 then
+
+			else
+				break;
+			end;
+			v42 = v43;
+			if not v44:IsA("UIGridLayout") then
+				if not v44:IsA("UIPadding") then
+					v44:Destroy();
+				end;
+			end;		
+		end;
+		WipeConnections(u4.ColorPicker);
+		local v45, v46, v47 = pairs(p15);
+		while true do
+			local v48, v49 = v45(v46, v47);
+			if v48 then
+
+			else
+				break;
+			end;
+			v47 = v48;
+			local v50 = l__ColourTemplate__39:Clone();
+			v50.Parent = l__ColorMenu__38;
+			v50.Name = v48;
+			v50.BackgroundColor3 = v49;
+			v50.Activated:Connect(function()
+				if u13 then
+					if u13:FindFirstChild("UIStroke") then
+						u13.UIStroke.Thickness = 0;
+					end;
+				end;
+				u13 = v50;
+				if u13 then
+					if u13:FindFirstChild("UIStroke") then
+						u13.UIStroke.Thickness = 5.2;
+						u14(u13.BackgroundColor3);
+					end;
+				end;
+			end);		
+		end;
+	end;
+	local v51, v52, v53 = pairs(p12);
+	while true do
+		local v54, v55 = v51(v52, v53);
+		if v54 then
+
+		else
+			break;
+		end;
+		local v56 = u10.Vehicles.GetVehicleByName(LocalPlayer.Team.Name, v55.VehicleName and v55);
+		if v56 then
+			if v56.StationSpecific then
+				print(("%s is specific to:"):format(v56.Name));
+				warn(v56.StationSpecific);
+				if table.find(v56.StationSpecific, p13.LinkedSpawns.Value.Name) then
+					local v57 = l__Template__11:Clone();
+					v57.Image.Image = v56 and v56.Image or "";
+					v57.Title.Text = string.upper(v56 and v56.Name);
+					v57.Name = v56 and v56.Name;
+					v57.Parent = VehicleDealer.PurchaseFrame.NavBar.Contents;
+					if v56.Price then
+						if v56.Price == 0 then
+							v57.Price.Text = "FREE";
+						else
+							v57.Price.Text = "$" .. tostring(v56.Price) and "N/A";
+						end;
+					else
+						v57.Price.Text = "$" .. tostring(v56.Price) and "N/A";
+					end;
+					local u15 = nil;
+					u9[v56 and v56.Name] = v57.Activated:Connect(function()
+						u15 = v56;
+						VehicleDealer.PurchaseFrame.LowerBar.CarTitle.Text = v56.Name;
+						VehicleDealer.PurchaseFrame.LowerBar.Purchase.PriceHolder.Price.Text = v57.Price.Text;
+						if u15.Type == "Helicopter" then
+							MakeCarStats(BindCameraToHeli(VehicleDealer.PurchaseFrame.ViewportFrame, v56.Name, 50), v56, VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu);
+							return;
+						end;
+						if u15.Type == "Boat" then
+							print("is a boat, no stats");
+							return;
+						end;
+						if u15.Type == "Trailer" then
+							print("is a trailer, no stats");
+							return;
+						end;
+						u12 = BindCameraToCar(VehicleDealer.PurchaseFrame.ViewportFrame, v56.Name, 25, v55.VehicleColor);
+						MakeCarStats(u12, v56, VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu);
+						if v56.Paintable then
+							v37(v56.Colors);
+						end;
+					end);
+				end;
+			else
+				v57 = l__Template__11:Clone();
+				v57.Image.Image = v56 and v56.Image or "";
+				v57.Title.Text = string.upper(v56 and v56.Name);
+				v57.Name = v56 and v56.Name;
+				v57.Parent = VehicleDealer.PurchaseFrame.NavBar.Contents;
+				if v56.Price then
+					if v56.Price == 0 then
+						v57.Price.Text = "FREE";
+					else
+						v57.Price.Text = "$" .. tostring(v56.Price) and "N/A";
+					end;
+				else
+					v57.Price.Text = "$" .. tostring(v56.Price) and "N/A";
+				end;
+				u15 = nil;
+				u9[v56 and v56.Name] = v57.Activated:Connect(function()
+					u15 = v56;
+					VehicleDealer.PurchaseFrame.LowerBar.CarTitle.Text = v56.Name;
+					VehicleDealer.PurchaseFrame.LowerBar.Purchase.PriceHolder.Price.Text = v57.Price.Text;
+					if u15.Type == "Helicopter" then
+						MakeCarStats(BindCameraToHeli(VehicleDealer.PurchaseFrame.ViewportFrame, v56.Name, 50), v56, VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu);
+						return;
+					end;
+					if u15.Type == "Boat" then
+						print("is a boat, no stats");
+						return;
+					end;
+					if u15.Type == "Trailer" then
+						print("is a trailer, no stats");
+						return;
+					end;
+					u12 = BindCameraToCar(VehicleDealer.PurchaseFrame.ViewportFrame, v56.Name, 25, v55.VehicleColor);
+					MakeCarStats(u12, v56, VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu);
+					if v56.Paintable then
+						v37(v56.Colors);
+					end;
+				end);
+			end;
+		end;	
+	end;
+	local u16 = nil;
+	u4.PurchaseVehicle = VehicleDealer.PurchaseFrame.LowerBar.Purchase.Activated:Connect(function()
+		if u16 then
+			u6.BuyItem:FireServer("CarDealership", u16.Name, u13 and u13.BackgroundColor3 or nil);
+		end;
+		Quit();
+	end);
+	u4.Statistics = VehicleDealer.PurchaseFrame.LowerBar.Statistics.Activated:Connect(function()
+		TweenService:Create(VehicleDealer.PurchaseFrame.LowerBar.Statistics, u3, {
+			BackgroundColor3 = Color3.fromRGB(131, 131, 132)
+		}):Play();
+		TweenService:Create(VehicleDealer.PurchaseFrame.LowerBar.Color, u3, {
+			BackgroundColor3 = Color3.fromRGB(61, 61, 61)
+		}):Play();
+		VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu.Visible = true;
+		VehicleDealer.PurchaseFrame.LowerBar.ColorMenu.Visible = false;
+	end);
+	u4.Color = VehicleDealer.PurchaseFrame.LowerBar.Color.Activated:Connect(function()
+		TweenService:Create(VehicleDealer.PurchaseFrame.LowerBar.Statistics, u3, {
+			BackgroundColor3 = Color3.fromRGB(61, 61, 61)
+		}):Play();
+		TweenService:Create(VehicleDealer.PurchaseFrame.LowerBar.Color, u3, {
+			BackgroundColor3 = Color3.fromRGB(131, 131, 132)
+		}):Play();
+		VehicleDealer.PurchaseFrame.LowerBar.StatisticsMenu.Visible = false;
+		VehicleDealer.PurchaseFrame.LowerBar.ColorMenu.Visible = true;
+	end);
+end;
+local l__Template__17 = VehicleDealer.SpawnFrame.NavBar.Contents.UIListLayout.Template;
+local u18 = "";
+function SpawnMenu(p16, p17)
+	ClearSub();
+	VehicleDealer.SpawnFrame.Visible = true;
+	VehicleDealer.PurchaseFrame.Visible = false;
+	VehicleDealer.MenuFrame.Visible = false;
+	local v58, v59, v60 = pairs(VehicleDealer.SpawnFrame.NavBar.Contents:GetChildren());
+	while true do
+		local v61, v62 = v58(v59, v60);
+		if v61 then
+
+		else
+			break;
+		end;
+		v60 = v61;
+		if v62:IsA("TextButton") then
+			v62:Destroy();
+		end;	
+	end;
+	local l__Contents__63 = VehicleDealer.SpawnFrame.NavBar.Contents;
+	u4.UIListLayout = l__Contents__63.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		l__Contents__63.CanvasSize = UDim2.new(0, 0, 0, l__Contents__63.UIListLayout.AbsoluteContentSize.Y + 5);
+	end);
+	u4.ColorPicker = {};
+	local u19 = nil;
+	local u20 = nil;
+	local function u21(p18)
+		if u19 then
+			local v64, v65, v66 = pairs(u19:GetDescendants());
+			while true do
+				local v67, v68 = v64(v65, v66);
+				if v67 then
+
+				else
+					break;
+				end;
+				v66 = v67;
+				if v68.Parent.Name ~= "Color" then
+					if v68.Name == "Color" then
+						if v68:IsA("BasePart") then
+							v68.Color = p18;
+						end;
+					end;
+				elseif v68:IsA("BasePart") then
+					v68.Color = p18;
+				end;			
+			end;
+		end;
+	end;
+	local function v69(p19)
+		local l__ColorMenu__70 = VehicleDealer.SpawnFrame.LowerBar.ColorMenu;
+		local l__ColourTemplate__71 = l__ColorMenu__70.UIGridLayout.ColourTemplate;
+		local v72, v73, v74 = pairs(l__ColorMenu__70:GetChildren());
+		while true do
+			local v75, v76 = v72(v73, v74);
+			if v75 then
+
+			else
+				break;
+			end;
+			v74 = v75;
+			if not v76:IsA("UIGridLayout") then
+				if not v76:IsA("UIPadding") then
+					v76:Destroy();
+				end;
+			end;		
+		end;
+		WipeConnections(u4.ColorPicker);
+		local v77, v78, v79 = pairs(p19);
+		while true do
+			local v80, v81 = v77(v78, v79);
+			if v80 then
+
+			else
+				break;
+			end;
+			v79 = v80;
+			local v82 = l__ColourTemplate__71:Clone();
+			v82.Parent = l__ColorMenu__70;
+			v82.Name = v80;
+			v82.BackgroundColor3 = v81;
+			v82.Activated:Connect(function()
+				if u20 then
+					if u20:FindFirstChild("UIStroke") then
+						u20.UIStroke.Thickness = 0;
+					end;
+				end;
+				u20 = v82;
+				if u20 then
+					if u20:FindFirstChild("UIStroke") then
+						u20.UIStroke.Thickness = 5.2;
+						u21(u20.BackgroundColor3);
+					end;
+				end;
+			end);		
+		end;
+	end;
+	u4.Statistics = VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Statistics.Activated:Connect(function()
+		TweenService:Create(VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Statistics, u3, {
+			BackgroundColor3 = Color3.fromRGB(131, 131, 132)
+		}):Play();
+		TweenService:Create(VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Color, u3, {
+			BackgroundColor3 = Color3.fromRGB(61, 61, 61)
+		}):Play();
+		VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu.Visible = true;
+		VehicleDealer.SpawnFrame.LowerBar.ColorMenu.Visible = false;
+	end);
+	u4.Color = VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Color.Activated:Connect(function()
+		TweenService:Create(VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Statistics, u3, {
+			BackgroundColor3 = Color3.fromRGB(61, 61, 61)
+		}):Play();
+		TweenService:Create(VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Color, u3, {
+			BackgroundColor3 = Color3.fromRGB(131, 131, 132)
+		}):Play();
+		VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu.Visible = false;
+		VehicleDealer.SpawnFrame.LowerBar.ColorMenu.Visible = true;
+	end);
+	local v83, v84, v85 = pairs(p16);
+	while true do
+		local v86, v87 = v83(v84, v85);
+		if v86 then
+
+		else
+			break;
+		end;
+		local v88 = u10.Vehicles.GetVehicleByName(LocalPlayer.Team.Name, v87.VehicleName and v87);
+		if v88 then
+			if v88.StationSpecific then
+				if table.find(v88.StationSpecific, p17.LinkedSpawns.Value.Name) then
+					local v89 = l__Template__17:Clone();
+					v89.Image.Image = v88 and v88.Image or "";
+					v89.Title.Text = string.upper(v88 and v88.Name);
+					v89.Name = v88 and v88.Name;
+					v89.Parent = VehicleDealer.SpawnFrame.NavBar.Contents;
+					local u22 = nil;
+					u9[v88 and v88.Name] = v89.Activated:Connect(function()
+						VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = false;
+						u22 = v88;
+						VehicleDealer.SpawnFrame.LowerBar.InfoList.CarTitle.Text = v88.Name;
+						print(v87.Plate);
+						if not v87.Plate then
+							if u18 then
+								VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Text = v87.Plate or u18;
+								VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = true;
+							else
+								VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = false;
+							end;
+						else
+							VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Text = v87.Plate or u18;
+							VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = true;
+						end;
+						if u22.Type == "Helicopter" then
+							u19 = BindCameraToHeli(VehicleDealer.SpawnFrame.ViewportFrame, v88.Name, 50);
+							MakeCarStats(u19, v88, VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu);
+							return;
+						end;
+						if u22.Type == "Boat" then
+							return;
+						end;
+						u19 = BindCameraToCar(VehicleDealer.SpawnFrame.ViewportFrame, v88.Name, 25, v87.VehicleColor);
+						MakeCarStats(u19, v88, VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu);
+						if v88.Paintable == true then
+							if LocalPlayer.Team.Name ~= "Citizens" then
+								if LocalPlayer.Team.Name ~= "Visitors" then
+									if LocalPlayer.Team.Name ~= "Prisoners" then
+										VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = true;
+										v69(v88.Colors);
+										return;
+									end;
+								end;
+							end;
+						end;
+						VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = false;
+					end);
+				end;
+			else
+				v89 = l__Template__17:Clone();
+				v89.Image.Image = v88 and v88.Image or "";
+				v89.Title.Text = string.upper(v88 and v88.Name);
+				v89.Name = v88 and v88.Name;
+				v89.Parent = VehicleDealer.SpawnFrame.NavBar.Contents;
+				u22 = nil;
+				u9[v88 and v88.Name] = v89.Activated:Connect(function()
+					VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = false;
+					u22 = v88;
+					VehicleDealer.SpawnFrame.LowerBar.InfoList.CarTitle.Text = v88.Name;
+					print(v87.Plate);
+					if not v87.Plate then
+						if u18 then
+							VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Text = v87.Plate or u18;
+							VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = true;
+						else
+							VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = false;
+						end;
+					else
+						VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Text = v87.Plate or u18;
+						VehicleDealer.SpawnFrame.LowerBar.InfoList.CarPlate.Visible = true;
+					end;
+					if u22.Type == "Helicopter" then
+						u19 = BindCameraToHeli(VehicleDealer.SpawnFrame.ViewportFrame, v88.Name, 50);
+						MakeCarStats(u19, v88, VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu);
+						return;
+					end;
+					if u22.Type == "Boat" then
+						return;
+					end;
+					u19 = BindCameraToCar(VehicleDealer.SpawnFrame.ViewportFrame, v88.Name, 25, v87.VehicleColor);
+					MakeCarStats(u19, v88, VehicleDealer.SpawnFrame.LowerBar.StatisticsMenu);
+					if v88.Paintable == true then
+						if LocalPlayer.Team.Name ~= "Citizens" then
+							if LocalPlayer.Team.Name ~= "Visitors" then
+								if LocalPlayer.Team.Name ~= "Prisoners" then
+									VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = true;
+									v69(v88.Colors);
+									return;
+								end;
+							end;
+						end;
+					end;
+					VehicleDealer.SpawnFrame.LowerBar.InfoList.Buttons.Visible = false;
+				end);
+			end;
+		end;	
+	end;
+	local u23 = nil;
+	u4.SpawnVehicle = VehicleDealer.SpawnFrame.LowerBar.Spawn.Activated:Connect(function()
+		print(u23);
+		if u23 then
+			if u23.Type == "Helicopter" then
+				u6.SpawnHeli:FireServer(p17, u23.Name);
+			elseif u23.Paintable == true then
+				if LocalPlayer.Team.Name ~= "Citizens" then
+					if LocalPlayer.Team.Name ~= "Visitors" then
+						if LocalPlayer.Team.Name ~= "Prisoners" then
+							u6.SpawnCar:FireServer(p17, u23.Name, u20 and u20.BackgroundColor3 or nil);
+						else
+							u6.SpawnCar:FireServer(p17, u23.Name);
+						end;
+					else
+						u6.SpawnCar:FireServer(p17, u23.Name);
+					end;
+				else
+					u6.SpawnCar:FireServer(p17, u23.Name);
+				end;
+			else
+				u6.SpawnCar:FireServer(p17, u23.Name);
+			end;
+		end;
+		Quit();
+	end);
+end;
+function ProcessOpen(p20, p21, p22)
+	VehicleDealer.Topbar.Title.Text = p21 and "CAR DEALERSHIP";
+	u4.Close = VehicleDealer.Topbar.CloseButton.Activated:Connect(function()
+		Quit();
+	end);
+	if LocalPlayer.Team.Name ~= "Citizens" then
+		if LocalPlayer.Team.Name ~= "Visitors" then
+			if LocalPlayer.Team.Name ~= "Prisoners" then
+				VehicleDealer.Visible = true;
+				VehicleDealer.SpawnFrame.Visible = true;
+				VehicleDealer.PurchaseFrame.Visible = false;
+				VehicleDealer.MenuFrame.Visible = false;
+				SpawnMenu(u6.GetTeamVehicles:InvokeServer(), p20);
+				return;
+			end;
+		end;
+	end;
+	VehicleDealer.Visible = true;
+	VehicleDealer.SpawnFrame.Visible = false;
+	VehicleDealer.PurchaseFrame.Visible = false;
+	VehicleDealer.MenuFrame.Visible = true;
+	u4.PurchaseMenu = VehicleDealer.MenuFrame.Purchase.Activated:Connect(function()
+		u10.AudioControl:QuickSound(3869188672, 0.15, 0.65);
+		PurchaseMenu(u6.GetTeamVehicles:InvokeServer(), p20);
+	end);
+	u4.SpawnMenu = VehicleDealer.MenuFrame.Spawn.Activated:Connect(function()
+		u10.AudioControl:QuickSound(3869188672, 0.15, 0.65);
+		SpawnMenu(u6.OwnedVehicles:InvokeServer(), p20);
+	end);
+	u4.SellMenu = VehicleDealer.MenuFrame.Sell.Activated:Connect(function()
+		u10.AudioControl:QuickSound(3869188672, 0.15, 0.65);
+		u10.Notification:New(Color3.fromRGB(140, 85, 85), "Error", "Car Dealership", "This feature is currently not available. Check back in the near-future!", 5);
+	end);
+end;
+function CreateConnections()
+	u4.HumanoidMovement = LocalPlayer.Character:FindFirstChild("Humanoid").Changed:Connect(function(p23)
+		if p23 == "MoveDirection" then
+			Quit();
+		end;
+	end);
+end;
+function v1.Open(p24, p25, p26)
+	if (LocalPlayer.Character.PrimaryPart.Position - p25.Position).magnitude > 20 then
+		return;
+	end;
+	u18 = u6.RadioFunc:InvokeServer("GetCallsign") and nil;
+	ProcessOpen(p25, p26 or p25.Name);
+	CreateConnections();
+end;
+function v1.Close(p27)
+	Quit();
+end;
+return v1;
+
